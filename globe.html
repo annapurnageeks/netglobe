@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>netglobe</title>
+<style>
+  :root {
+    --bg: #04060d; --panel: rgba(14,19,32,.72); --line: #1b2436; --text: #dfe8f5; --muted: #7d8aa3;
+    --land: #2e8fb0; --land-dim: #16303c; --home: #ffd34a; --arc: #4fd8c0; --tracker: #ff5d6c;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 15px/1.5 var(--font);
+               overflow: hidden; -webkit-font-smoothing: antialiased; }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  .top { position: fixed; top: 0; left: 0; right: 0; display: flex; align-items: center; gap: 14px; padding: 14px 18px; z-index: 3;
+         pointer-events: none; }
+  .logo { font-weight: 850; font-size: 19px; letter-spacing: -.02em; display: flex; align-items: center; gap: 9px; }
+  .logo .o { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--land); position: relative; }
+  .logo .o::after { content: ""; position: absolute; inset: 2px 4px; border: 1.5px solid var(--land); border-radius: 50%; opacity: .6; }
+  .where { color: var(--muted); font-size: 13px; }
+  .stats { position: fixed; top: 14px; right: 18px; display: flex; gap: 8px; z-index: 3; }
+  .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; text-align: center;
+          backdrop-filter: blur(8px); min-width: 70px; }
+  .stat b { display: block; font-size: 20px; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .stat.tr b { color: var(--tracker); } .stat span { font-size: 11px; color: var(--muted); }
+
+  .panel { position: fixed; left: 18px; bottom: 18px; top: 64px; width: 360px; max-width: 42vw; background: var(--panel);
+           border: 1px solid var(--line); border-radius: 16px; backdrop-filter: blur(10px); display: flex; flex-direction: column;
+           overflow: hidden; z-index: 3; }
+  .panel h2 { margin: 0; padding: 13px 16px; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted);
+              border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; }
+  .list { overflow-y: auto; padding: 6px; }
+  .app { margin-bottom: 4px; }
+  .app > .head { display: flex; align-items: center; gap: 8px; padding: 7px 10px; font-weight: 700; cursor: default; }
+  .app .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--arc); flex: none; }
+  .app .n { color: var(--muted); font: 12px var(--mono); margin-left: auto; }
+  .dest { display: grid; grid-template-columns: 10px 1fr auto; gap: 8px; align-items: baseline; padding: 4px 10px 4px 26px; font-size: 13.5px; }
+  .dest .mk { width: 7px; height: 7px; border-radius: 50%; background: #3a4256; align-self: center; }
+  .dest.tracker .mk { background: var(--tracker); box-shadow: 0 0 6px var(--tracker); }
+  .dest .org { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dest.tracker .org { color: var(--tracker); }
+  .dest .loc { color: var(--muted); font-size: 12px; white-space: nowrap; }
+  .dest .why { grid-column: 2/4; color: var(--tracker); font-size: 11.5px; opacity: .85; padding-left: 0; }
+  .empty { color: var(--muted); padding: 24px 16px; text-align: center; }
+  .foot { padding: 9px 16px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; }
+  .foot a { color: inherit; }
+  .legend { position: fixed; right: 18px; bottom: 18px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+            padding: 10px 14px; font-size: 12.5px; color: var(--muted); z-index: 3; backdrop-filter: blur(8px); }
+  .legend div { display: flex; align-items: center; gap: 7px; margin: 3px 0; }
+  .legend i { width: 9px; height: 9px; border-radius: 50%; }
+  @media (max-width: 680px) { .panel { width: auto; right: 18px; max-width: none; top: auto; height: 44vh; } .legend { display: none; } }
+</style>
+</head>
+<body>
+<canvas id="globe"></canvas>
+<div class="top">
+  <div class="logo"><span class="o"></span> netglobe</div>
+  <span class="where" id="where"></span>
+  <span class="where" id="demobadge" style="color:var(--home)"></span>
+</div>
+<div class="stats">
+  <div class="stat"><b id="s-conn">0</b><span>connections</span></div>
+  <div class="stat"><b id="s-apps">0</b><span>apps</span></div>
+  <div class="stat"><b id="s-ctry">0</b><span>countries</span></div>
+  <div class="stat tr"><b id="s-trk">0</b><span>trackers</span></div>
+</div>
+<aside class="panel">
+  <h2><span>Who your apps are talking to</span><span id="clock"></span></h2>
+  <div class="list" id="list"><div class="empty">Listening for connections…</div></div>
+  <div class="foot"><span>Reads only · nothing uploaded</span><a href="https://github.com/annapurnageeks/netglobe">github</a></div>
+</aside>
+<div class="legend">
+  <div><i style="background:var(--home)"></i> you</div>
+  <div><i style="background:var(--arc)"></i> a connection</div>
+  <div><i style="background:var(--tracker)"></i> a tracker</div>
+</div>
+<script>
+const C = /*__CONFIG__*/null;
+const $ = (id) => document.getElementById(id);
+const el = (t, c, x) => { const e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; };
+const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+$("where").textContent = "you are in " + (C.home.name || "—");
+if (C.demo) $("demobadge").textContent = "· sample data (run it live for your own)";
+
+// ---- unpack the land mask into [lon,lat] dots ----
+const mask = C.landmask;
+const bytes = Uint8Array.from(atob(mask.bits), c => c.charCodeAt(0));
+const landDots = [];
+for (let gy = 0; gy < mask.h; gy++) for (let gx = 0; gx < mask.w; gx++) {
+  const idx = gy * mask.w + gx;
+  if (bytes[idx >> 3] & (1 << (idx & 7))) {
+    const lat = 90 - (gy + 0.5) * (180 / mask.h);
+    if (lat > -58) landDots.push([-180 + (gx + 0.5) * (360 / mask.w), lat]);  // skip Antarctica's pole crowding
+  }
+}
+
+// ---- globe state ----
+const canvas = $("globe"), g = canvas.getContext("2d");
+let W = 0, Hh = 0, R = 0, cx = 0, cy = 0, dpr = 1;
+let rot = 0, targetRot = 0;                 // rotation around the pole (longitude offset)
+let tilt = -0.38;                            // latitude tilt
+let dragging = null, autorotate = true;
+const homeLL = [C.home.lon || 0, C.home.lat || 0];
+
+function resize() {
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  W = canvas.clientWidth; Hh = canvas.clientHeight;
+  canvas.width = W * dpr; canvas.height = Hh * dpr; g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  R = Math.min(W, Hh) * 0.42; cx = W / 2; cy = Hh / 2;
+  // spin so your home longitude faces the viewer
+  targetRot = -homeLL[0] * Math.PI / 180;
+}
+window.addEventListener("resize", resize); resize(); rot = targetRot;
+
+// project lon/lat -> screen point on an orthographic globe. Returns null if on the far side.
+function project(lon, lat) {
+  const la = lat * Math.PI / 180, lo = lon * Math.PI / 180 + rot;
+  const x = Math.cos(la) * Math.sin(lo);
+  const y = Math.sin(la) * Math.cos(tilt) - Math.cos(la) * Math.cos(lo) * Math.sin(tilt);
+  const z = Math.sin(la) * Math.sin(tilt) + Math.cos(la) * Math.cos(lo) * Math.cos(tilt);
+  return { x: cx + R * x, y: cy - R * y, z };   // z > 0 is the near hemisphere
+}
+
+// drag to spin
+canvas.addEventListener("pointerdown", e => { dragging = { x: e.clientX, y: e.clientY, rot, tilt }; autorotate = false; });
+window.addEventListener("pointerup", () => { dragging = null; });
+window.addEventListener("pointermove", e => {
+  if (!dragging) return;
+  targetRot = rot = dragging.rot + (e.clientX - dragging.x) * 0.005;
+  tilt = Math.max(-1.3, Math.min(1.3, dragging.tilt - (e.clientY - dragging.y) * 0.005));
+});
+
+// ---- data from the server ----
+let flows = [], home = C.home;
+const pulses = [];   // travelling dots along arcs
+
+async function poll() {
+  if (C.demo) { flows = C.demo.flows; home = C.demo.home; updatePanel(C.demo); return; }  // static Pages demo
+  try {
+    const r = await fetch("/api/connections");
+    const data = await r.json();
+    if (!data.error) { flows = data.flows; home = data.home; updatePanel(data); }
+  } catch (e) {}
+  setTimeout(poll, 2500);
+}
+
+function updatePanel(data) {
+  const s = data.summary;
+  $("s-conn").textContent = s.connections; $("s-apps").textContent = s.apps;
+  $("s-ctry").textContent = s.countries; $("s-trk").textContent = s.trackers;
+  $("clock").textContent = data.at;
+  const byApp = {};
+  flows.forEach(f => (byApp[f.app] = byApp[f.app] || []).push(f));
+  const list = $("list"); list.replaceChildren();
+  if (!flows.length) { list.append(el("div", "empty", "No active connections right now.")); return; }
+  Object.entries(byApp).sort((a, b) => b[1].length - a[1].length).forEach(([app, fs]) => {
+    const box = el("div", "app"), head = el("div", "head");
+    head.append(el("span", "dot"), el("span", null, app), el("span", "n", fs.length + ""));
+    if (fs.some(f => f.tracker)) head.querySelector(".dot").style.background = css("--tracker");
+    box.append(head);
+    const seen = new Set();
+    fs.sort((a, b) => (b.tracker - a.tracker)).forEach(f => {
+      const k = f.org + "|" + f.place; if (seen.has(k)) return; seen.add(k);
+      const d = el("div", "dest" + (f.tracker ? " tracker" : ""));
+      d.append(el("span", "mk"), el("span", "org", f.org),
+               el("span", "loc", f.place + (f.country ? " · " + f.country : "")));
+      if (f.tracker && f.tracker_name) d.append(el("span", "why", "⚑ " + f.tracker_name));
+      box.append(d);
+    });
+    list.append(box);
+  });
+}
+
+// ---- draw ----
+function arcPoints(a, b, n) {
+  // great-circle-ish interpolation lifted off the sphere, in lon/lat then projected each frame
+  const out = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    out.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, Math.sin(t * Math.PI)]);
+  }
+  return out;
+}
+
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(now - last, 50); last = now;
+  if (autorotate && !dragging) targetRot -= dt * 0.00008;
+  rot += (targetRot - rot) * 0.1;
+
+  g.clearRect(0, 0, W, Hh);
+  // ocean sphere
+  const grad = g.createRadialGradient(cx - R * .3, cy - R * .3, R * .2, cx, cy, R);
+  grad.addColorStop(0, "#0a1626"); grad.addColorStop(1, "#060a12");
+  g.beginPath(); g.arc(cx, cy, R, 0, 7); g.fillStyle = grad; g.fill();
+  g.strokeStyle = "rgba(79,216,192,.18)"; g.lineWidth = 1; g.stroke();
+
+  // land dots
+  for (const [lon, lat] of landDots) {
+    const p = project(lon, lat);
+    if (p.z <= 0) continue;
+    const a = 0.35 + 0.65 * p.z;
+    g.fillStyle = `rgba(90,195,225,${a})`;
+    g.fillRect(p.x - 1, p.y - 1, 2.1, 2.1);
+  }
+
+  // home marker
+  const hp = project(homeLL[0], homeLL[1]);
+  const located = flows.filter(f => f.lat != null && f.lon != null);
+
+  // arcs
+  g.lineWidth = 1.4;
+  for (const f of located) {
+    const pts = arcPoints(homeLL, [f.lon, f.lat], 32).map(([lo, la, lift]) => {
+      const p = project(lo, la); return { ...p, lift };
+    });
+    let started = false;
+    g.beginPath();
+    for (const p of pts) {
+      const vis = p.z > -0.1;
+      // lift the arc off the surface toward the viewer
+      const sx = cx + (p.x - cx) * (1 + p.lift * 0.22), sy = cy + (p.y - cy) * (1 + p.lift * 0.22);
+      if (vis) { if (!started) { g.moveTo(sx, sy); started = true; } else g.lineTo(sx, sy); }
+      else started = false;
+    }
+    g.strokeStyle = f.tracker ? "rgba(255,93,108,.55)" : "rgba(79,216,192,.4)";
+    g.stroke();
+  }
+
+  // travelling pulses (spawn occasionally)
+  if (located.length && Math.random() < 0.25) {
+    const f = located[Math.floor(Math.random() * located.length)];
+    pulses.push({ f, t: 0 });
+  }
+  for (let i = pulses.length - 1; i >= 0; i--) {
+    const pu = pulses[i]; pu.t += dt * 0.0009;
+    if (pu.t >= 1) { pulses.splice(i, 1); continue; }
+    const lo = homeLL[0] + (pu.f.lon - homeLL[0]) * pu.t, la = homeLL[1] + (pu.f.lat - homeLL[1]) * pu.t;
+    const lift = Math.sin(pu.t * Math.PI), p = project(lo, la);
+    if (p.z <= -0.1) continue;
+    const sx = cx + (p.x - cx) * (1 + lift * 0.22), sy = cy + (p.y - cy) * (1 + lift * 0.22);
+    g.beginPath(); g.arc(sx, sy, 2.2, 0, 7);
+    g.fillStyle = pu.f.tracker ? css("--tracker") : css("--arc"); g.fill();
+  }
+
+  // destination dots
+  for (const f of located) {
+    const p = project(f.lon, f.lat);
+    if (p.z <= 0) continue;
+    g.beginPath(); g.arc(p.x, p.y, f.tracker ? 3.2 : 2.4, 0, 7);
+    g.fillStyle = f.tracker ? css("--tracker") : css("--arc");
+    g.shadowColor = g.fillStyle; g.shadowBlur = f.tracker ? 10 : 6; g.fill(); g.shadowBlur = 0;
+  }
+
+  // home on top
+  if (hp.z > 0) {
+    const pulse = 4 + 2 * Math.sin(now * 0.004);
+    g.beginPath(); g.arc(hp.x, hp.y, pulse + 3, 0, 7); g.strokeStyle = "rgba(255,211,74,.4)"; g.lineWidth = 1.5; g.stroke();
+    g.beginPath(); g.arc(hp.x, hp.y, 4, 0, 7); g.fillStyle = css("--home");
+    g.shadowColor = css("--home"); g.shadowBlur = 12; g.fill(); g.shadowBlur = 0;
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+poll();
+</script>
+</body>
+</html>
